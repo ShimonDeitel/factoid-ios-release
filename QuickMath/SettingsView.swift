@@ -4,9 +4,9 @@ struct SettingsView: View {
     @EnvironmentObject var store: Store
     @EnvironmentObject var appModel: AppModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
 
     @AppStorage("quickmath.theme") private var themeRaw = AppTheme.system.rawValue
-
     @State private var showPaywall = false
     @State private var showDeleteConfirm = false
 
@@ -21,32 +21,40 @@ struct SettingsView: View {
         NavigationStack {
             ZStack {
                 QMBackground()
-
                 List {
                     // Pro section
                     Section("Subscription") {
                         if store.isPro {
                             HStack {
-                                Text("Tideline Pro")
+                                Label("Did You Know Pro", systemImage: "checkmark.seal.fill")
+                                    .foregroundStyle(Color.qmAccent)
                                 Spacer()
                                 Text("Active")
-                                    .foregroundStyle(Color.qmCorrect)
-                                    .font(.subheadline.weight(.medium))
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
                             }
-                            Link("Manage Subscription",
-                                 destination: URL(string: "https://apps.apple.com/account/subscriptions")!)
-                                .foregroundStyle(Color.qmAccent)
+                            Button {
+                                openURL(URL(string: "https://apps.apple.com/account/subscriptions")!)
+                            } label: {
+                                Label("Manage Subscription", systemImage: "arrow.up.right.square")
+                            }
                         } else {
-                            Button("Unlock Tideline Pro") {
+                            Button {
+                                Haptics.tap()
                                 showPaywall = true
+                            } label: {
+                                Label("Upgrade to Pro — \(store.displayPrice)/mo", systemImage: "lightbulb.fill")
+                                    .foregroundStyle(Color.qmAccent)
                             }
-                            .foregroundStyle(Color.qmAccent)
+                            Button {
+                                Task {
+                                    Haptics.tap()
+                                    await store.restore()
+                                }
+                            } label: {
+                                Label("Restore Purchase", systemImage: "arrow.clockwise")
+                            }
                         }
-
-                        Button("Restore Purchase") {
-                            Task { await store.restore() }
-                        }
-                        .foregroundStyle(Color.qmAccent)
                     }
 
                     // Appearance
@@ -56,25 +64,30 @@ struct SettingsView: View {
                                 Text(t.label).tag(t)
                             }
                         }
-                        .pickerStyle(.segmented)
+                        .pickerStyle(.menu)
                     }
 
                     // Legal
                     Section("Legal") {
-                        Link("Privacy Policy",
-                             destination: URL(string: "https://shimondeitel.github.io/tideline-site/privacy.html")!)
-                            .foregroundStyle(Color.qmAccent)
-                        Link("Terms of Use",
-                             destination: URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!)
-                            .foregroundStyle(Color.qmAccent)
+                        Button {
+                            openURL(URL(string: "https://shimondeitel.github.io/factoid-site/privacy.html")!)
+                        } label: {
+                            Label("Privacy Policy", systemImage: "hand.raised")
+                        }
+                        Button {
+                            openURL(URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!)
+                        } label: {
+                            Label("Terms of Use", systemImage: "doc.text")
+                        }
                     }
 
                     // Data
                     Section("Data") {
-                        Button("Delete All Data") {
+                        Button(role: .destructive) {
                             showDeleteConfirm = true
+                        } label: {
+                            Label("Delete all data", systemImage: "trash")
                         }
-                        .foregroundStyle(Color.qmWrong)
                     }
                 }
                 .scrollContentBackground(.hidden)
@@ -82,25 +95,23 @@ struct SettingsView: View {
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
+                        .fontWeight(.semibold)
                 }
             }
             .sheet(isPresented: $showPaywall) {
                 PaywallView()
                     .environmentObject(store)
             }
-            .confirmationDialog(
-                "Delete all Tideline data?",
-                isPresented: $showDeleteConfirm,
-                titleVisibility: .visible
-            ) {
-                Button("Delete All", role: .destructive) {
+            .confirmationDialog("Delete all data?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
+                Button("Delete", role: .destructive) {
                     appModel.deleteAllData()
+                    Haptics.warning()
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("This removes all your logged energy entries and cannot be undone.")
+                Text("This will permanently remove your fact history and saved collection. This cannot be undone.")
             }
         }
     }

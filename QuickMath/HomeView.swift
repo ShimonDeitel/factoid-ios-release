@@ -9,113 +9,109 @@ struct HomeView: View {
     @State private var showSettings = false
     @State private var showPaywall = false
     @State private var showInsights = false
+    @State private var showFact = false
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                QMBackground()
-
-                ScrollView {
-                    VStack(spacing: 24) {
-                        // Header
-                        VStack(spacing: 4) {
-                            Text("Tideline")
+        ZStack {
+            QMBackground()
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Header
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Did You Know")
                                 .font(.largeTitle.weight(.bold))
-                            Text("Ride your daily mood wave")
+                            Text(today())
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                         }
-                        .padding(.top, 8)
-
-                        // Today's entry card
-                        GridView()
-                            .padding(.horizontal, 16)
-
-                        // Stats row
-                        HStack(spacing: 12) {
-                            MetricTile(
-                                value: appModel.todayEntry.map { "\($0.level)" } ?? "-",
-                                label: "Today"
-                            )
-                            MetricTile(
-                                value: String(format: "%.1f", appModel.sevenDayAverage),
-                                label: "7-day avg"
-                            )
-                            MetricTile(
-                                value: "\(appModel.currentStreak)",
-                                label: "Streak"
-                            )
-                        }
-                        .padding(.horizontal, 16)
-
-                        // Pro tile
+                        Spacer()
                         Button {
-                            if store.isPro {
-                                showInsights = true
-                            } else {
-                                showPaywall = true
-                            }
+                            Haptics.tap()
+                            showSettings = true
                         } label: {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(store.isPro ? "Tideline Pro" : "Unlock Insights")
-                                        .font(.headline)
-                                    Text(store.isPro ? "History, dual-wave & trends" : "Multi-month history + dual-wave")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                                Spacer()
-                                Image(systemName: store.isPro ? "waveform.path.ecg" : "lock.fill")
-                                    .foregroundStyle(Color.qmAccent)
-                                    .font(.title3)
-                            }
-                            .qmCard()
+                            Image(systemName: "gearshape")
+                                .font(.system(size: 20, weight: .medium))
+                                .foregroundStyle(.primary)
+                                .frame(width: 44, height: 44)
                         }
-                        .buttonStyle(.plain)
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 20)
+
+                    // Today's fact card
+                    GridView()
                         .padding(.horizontal, 16)
 
-                        Spacer(minLength: 32)
+                    // Stats row
+                    HStack(spacing: 12) {
+                        MetricTile(value: "\(appModel.allShownFacts.count)", label: "Facts seen")
+                        MetricTile(value: "\(appModel.savedFacts.count)", label: "Saved")
+                        MetricTile(value: "\(appModel.weeklyFacts.count)", label: "This week")
                     }
-                }
-            }
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                    .padding(.horizontal, 16)
+
+                    // Pro tile
                     Button {
-                        showSettings = true
+                        Haptics.tap()
+                        if store.isPro {
+                            showInsights = true
+                        } else {
+                            showPaywall = true
+                        }
                     } label: {
-                        Image(systemName: "gearshape")
-                            .foregroundStyle(Color.qmAccent)
+                        HStack(spacing: 14) {
+                            Image(systemName: store.isPro ? "archivebox.fill" : "lock.fill")
+                                .font(.system(size: 22, weight: .medium))
+                                .foregroundStyle(store.isPro ? Color.qmAccent : .secondary)
+                                .frame(width: 36)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(store.isPro ? "My Collection" : "Did You Know Pro")
+                                    .font(.headline)
+                                Text(store.isPro ? "Browse your saved facts & weekly digest" : "Save facts, filter by topic & more")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(16)
+                        .background(Color.qmCard, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
                     }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, 16)
+
+                    Spacer(minLength: 40)
                 }
             }
-            .sheet(isPresented: $showSettings) {
-                SettingsView()
-                    .environmentObject(store)
-                    .environmentObject(appModel)
-            }
-            .sheet(isPresented: $showPaywall) {
-                PaywallView()
-                    .environmentObject(store)
-            }
-            .sheet(isPresented: $showInsights) {
-                InsightsView()
-                    .environmentObject(appModel)
-                    .environmentObject(store)
-            }
-            .onAppear {
-                handleForceScreen()
-            }
+        }
+        .sheet(isPresented: $showSettings) {
+            SettingsView()
+                .environmentObject(store)
+                .environmentObject(appModel)
+        }
+        .sheet(isPresented: $showPaywall) {
+            PaywallView()
+                .environmentObject(store)
+        }
+        .sheet(isPresented: $showInsights) {
+            InsightsView()
+                .environmentObject(appModel)
+                .environmentObject(store)
+        }
+        .onAppear {
+            if forceScreen == "paywall" { showPaywall = true }
+            if forceScreen == "insights" { showInsights = true }
+            if forceScreen == "settings" { showSettings = true }
         }
     }
 
-    private func handleForceScreen() {
-        guard let screen = forceScreen else { return }
-        switch screen {
-        case "paywall": showPaywall = true
-        case "insights": showInsights = true
-        case "settings": showSettings = true
-        default: break
-        }
+    private func today() -> String {
+        let f = DateFormatter()
+        f.dateStyle = .long
+        return f.string(from: .now)
     }
 }

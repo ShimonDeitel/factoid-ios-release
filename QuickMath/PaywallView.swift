@@ -3,115 +3,116 @@ import SwiftUI
 struct PaywallView: View {
     @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
 
     private let benefits = [
-        ("clock.arrow.circlepath", "Unlimited multi-month wave history and zoom"),
-        ("waveform.path.ecg", "Morning vs evening dual-wave comparison"),
-        ("lightbulb", "Best-time-of-day insights and gentle daily nudge")
+        ("bookmark.fill", "Saved facts collection you can browse anytime"),
+        ("slider.horizontal.3", "Category filters to weight your daily fact"),
+        ("bell.badge.fill", "Weekly digest notification summarizing the week's facts"),
     ]
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                QMBackground()
+        ZStack {
+            QMBackground()
+            ScrollView {
+                VStack(spacing: 32) {
+                    Spacer(minLength: 20)
 
-                ScrollView {
-                    VStack(spacing: 28) {
-                        // Icon + title
-                        VStack(spacing: 12) {
-                            Image(systemName: "waveform.path.ecg")
-                                .font(.system(size: 56, weight: .thin))
-                                .foregroundStyle(Color.qmAccent)
+                    // Icon + title
+                    VStack(spacing: 14) {
+                        Image(systemName: "lightbulb.fill")
+                            .font(.system(size: 60, weight: .light))
+                            .foregroundStyle(Color.qmAccent)
 
-                            Text("Tideline Pro")
-                                .font(.largeTitle.weight(.bold))
+                        Text("Did You Know Pro")
+                            .font(.largeTitle.weight(.bold))
+                            .multilineTextAlignment(.center)
 
-                            Text("$0.99 / month. Auto-renews until you cancel.")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                                .multilineTextAlignment(.center)
-                        }
-                        .padding(.top, 16)
+                        Text("$0.99 / month. Auto-renews until you cancel.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(.horizontal, 24)
 
-                        // Benefits
-                        VStack(spacing: 0) {
-                            ForEach(Array(benefits.enumerated()), id: \.offset) { idx, benefit in
-                                HStack(spacing: 14) {
-                                    Image(systemName: benefit.0)
-                                        .foregroundStyle(Color.qmAccent)
-                                        .frame(width: 28)
-                                    Text(benefit.1)
-                                        .font(.subheadline)
-                                    Spacer()
-                                }
-                                .padding(.vertical, 14)
-                                .padding(.horizontal, 16)
-
-                                if idx < benefits.count - 1 {
-                                    Divider().padding(.leading, 58)
-                                }
+                    // Benefits
+                    VStack(spacing: 14) {
+                        ForEach(benefits, id: \.0) { icon, text in
+                            HStack(spacing: 14) {
+                                Image(systemName: icon)
+                                    .font(.system(size: 20, weight: .medium))
+                                    .foregroundStyle(Color.qmAccent)
+                                    .frame(width: 32)
+                                Text(text)
+                                    .font(.body)
+                                    .lineLimit(2)
+                                Spacer()
                             }
+                            .padding(14)
+                            .background(Color.qmCard, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                         }
-                        .background(Color.qmCard, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-                        .padding(.horizontal, 16)
+                    }
+                    .padding(.horizontal, 20)
 
-                        // Unlock button
+                    // CTA
+                    VStack(spacing: 12) {
                         Button {
                             Task {
-                                await store.purchase()
+                                Haptics.tap()
+                                _ = await store.purchase()
                             }
                         } label: {
-                            HStack(spacing: 8) {
+                            Group {
                                 if store.purchaseInFlight {
-                                    ProgressView()
-                                        .tint(.white)
+                                    ProgressView().tint(.white)
+                                } else {
+                                    Text("Unlock for \(store.displayPrice)/month")
                                 }
-                                Text("Unlock for \(store.displayPrice)/month")
-                                    .frame(maxWidth: .infinity)
                             }
+                            .frame(maxWidth: .infinity)
                         }
                         .prominentButton()
                         .disabled(store.purchaseInFlight)
-                        .padding(.horizontal, 16)
+                        .padding(.horizontal, 20)
 
-                        // Restore
                         Button("Restore Purchase") {
-                            Task { await store.restore() }
-                        }
-                        .font(.subheadline)
-                        .foregroundStyle(Color.qmAccent)
-
-                        // Legal
-                        VStack(spacing: 8) {
-                            Text("Subscription automatically renews each month at \(store.displayPrice) unless cancelled at least 24 hours before the renewal date. Manage or cancel anytime in your Apple Account subscriptions.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .multilineTextAlignment(.center)
-
-                            HStack(spacing: 16) {
-                                Link("Terms of Use", destination: URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!)
-                                    .font(.caption)
-                                    .foregroundStyle(Color.qmAccent)
-                                Link("Privacy Policy", destination: URL(string: "https://shimondeitel.github.io/tideline-site/privacy.html")!)
-                                    .font(.caption)
-                                    .foregroundStyle(Color.qmAccent)
+                            Task {
+                                Haptics.tap()
+                                await store.restore()
                             }
                         }
-                        .padding(.horizontal, 24)
-
-                        Spacer(minLength: 16)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                     }
+
+                    // Legal / disclosure
+                    VStack(spacing: 10) {
+                        Text("Subscription auto-renews monthly at \(store.displayPrice) until canceled. Cancel anytime in your Apple account settings. Payment charged to your Apple ID account at confirmation of purchase.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 24)
+
+                        HStack(spacing: 16) {
+                            Button("Terms of Use") {
+                                openURL(URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!)
+                            }
+                            Text("·")
+                                .foregroundStyle(.secondary)
+                            Button("Privacy Policy") {
+                                openURL(URL(string: "https://shimondeitel.github.io/factoid-site/privacy.html")!)
+                            }
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    }
+
+                    Spacer(minLength: 30)
                 }
             }
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Close") { dismiss() }
-                }
-            }
-            .onChange(of: store.isPro) { _, newValue in
-                if newValue { dismiss() }
-            }
+        }
+        .onChange(of: store.isPro) { _, newValue in
+            if newValue { dismiss() }
         }
     }
 }

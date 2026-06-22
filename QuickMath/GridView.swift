@@ -1,137 +1,154 @@
 import SwiftUI
-import Charts
 
 struct GridView: View {
     @EnvironmentObject var appModel: AppModel
+    @EnvironmentObject var store: Store
 
-    @State private var sliderValue: Double = 5
-    @State private var logged = false
+    @State private var revealed = false
+    @State private var showReactions = false
 
-    private var chartEntries: [WaveEntry] {
-        Array(appModel.recentEntries.reversed())
-    }
+    private let reactions = ["🤯", "😮", "🤓", "😂", "💡"]
 
     var body: some View {
-        VStack(spacing: 20) {
-            // Wave chart
-            if chartEntries.isEmpty {
-                VStack(spacing: 8) {
-                    Image(systemName: "waveform")
-                        .font(.system(size: 44))
-                        .foregroundStyle(Color.qmAccent.opacity(0.4))
-                    Text("Log your first energy level below")
-                        .font(.subheadline)
+        VStack(spacing: 0) {
+            if let fact = appModel.todayFact {
+                // Category badge
+                HStack {
+                    Text(fact.category.uppercased())
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color.qmAccent)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(Color.qmAccent.opacity(0.1), in: Capsule())
+                    Spacer()
+                    Text("TODAY")
+                        .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
                 }
-                .frame(height: 140)
-                .frame(maxWidth: .infinity)
-            } else {
-                Chart {
-                    ForEach(Array(chartEntries.enumerated()), id: \.offset) { idx, entry in
-                        AreaMark(
-                            x: .value("Day", idx),
-                            yStart: .value("Base", 0),
-                            yEnd: .value("Level", entry.level)
-                        )
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [Color.qmAccent.opacity(0.25), Color.qmAccent.opacity(0.05)],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
-                        .interpolationMethod(.catmullRom)
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
+                .padding(.bottom, 16)
 
-                        LineMark(
-                            x: .value("Day", idx),
-                            y: .value("Level", entry.level)
-                        )
-                        .foregroundStyle(Color.qmAccent)
-                        .lineStyle(StrokeStyle(lineWidth: 2.5))
-                        .interpolationMethod(.catmullRom)
+                // Fact body
+                Text(fact.body)
+                    .font(.title3.weight(.semibold))
+                    .multilineTextAlignment(.leading)
+                    .lineSpacing(5)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 20)
 
-                        PointMark(
-                            x: .value("Day", idx),
-                            y: .value("Level", entry.level)
-                        )
-                        .foregroundStyle(Color.qmAccent)
-                        .symbolSize(36)
+                // Why-it's-true note (reveal)
+                if revealed {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "info.circle.fill")
+                                .font(.caption)
+                                .foregroundStyle(Color.qmAccent)
+                            Text("Why it's true")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Color.qmAccent)
+                        }
+                        Text(fact.sourceNote)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .lineSpacing(3)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(14)
+                    .background(Color.qmAccent.opacity(0.07), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .padding(.horizontal, 20)
+                    .padding(.top, 14)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+
+                // Action row
+                HStack(spacing: 12) {
+                    // Reveal button
+                    Button {
+                        Haptics.tap()
+                        withAnimation(.easeInOut(duration: 0.25)) {
+                            revealed.toggle()
+                        }
+                    } label: {
+                        Label(revealed ? "Hide" : "Why?", systemImage: revealed ? "eye.slash" : "lightbulb")
+                            .font(.subheadline.weight(.medium))
+                    }
+                    .softButton()
+
+                    Spacer()
+
+                    // Reactions toggle (Pro)
+                    if store.isPro {
+                        Button {
+                            Haptics.tap()
+                            withAnimation { showReactions.toggle() }
+                        } label: {
+                            Text(fact.reactionEmoji.isEmpty ? "React" : fact.reactionEmoji)
+                                .font(.subheadline.weight(.medium))
+                        }
+                        .softButton()
+                    }
+
+                    // Save button (Pro)
+                    Button {
+                        if store.isPro {
+                            appModel.toggleSave(fact)
+                            if fact.isSaved { Haptics.success() }
+                        } else {
+                            Haptics.warning()
+                        }
+                    } label: {
+                        Image(systemName: fact.isSaved ? "bookmark.fill" : "bookmark")
+                            .font(.system(size: 20, weight: .medium))
+                            .foregroundStyle(fact.isSaved ? Color.qmAccent : .secondary)
+                            .frame(width: 44, height: 44)
                     }
                 }
-                .chartYScale(domain: 0...10)
-                .chartXAxis(.hidden)
-                .chartYAxis {
-                    AxisMarks(values: [0, 5, 10]) { value in
-                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [4]))
-                            .foregroundStyle(Color.qmHair)
-                        AxisValueLabel {
-                            if let v = value.as(Int.self) {
-                                Text("\(v)")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 16)
+
+                // Reaction picker (Pro)
+                if showReactions && store.isPro {
+                    HStack(spacing: 16) {
+                        ForEach(reactions, id: \.self) { emoji in
+                            Button {
+                                appModel.setReaction(fact, emoji: emoji)
+                                Haptics.tap()
+                                withAnimation { showReactions = false }
+                            } label: {
+                                Text(emoji)
+                                    .font(.title2)
+                                    .frame(width: 44, height: 44)
+                                    .background(fact.reactionEmoji == emoji ? Color.qmAccent.opacity(0.15) : Color.clear, in: Circle())
                             }
                         }
                     }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 16)
+                    .transition(.opacity.combined(with: .scale(scale: 0.9)))
                 }
-                .frame(height: 140)
-            }
 
-            // Divider
-            Divider()
-
-            // Log energy section
-            VStack(spacing: 12) {
-                HStack {
-                    Text("Energy level")
+            } else {
+                // Empty state
+                VStack(spacing: 16) {
+                    Image(systemName: "lightbulb")
+                        .font(.system(size: 48, weight: .light))
+                        .foregroundStyle(Color.qmAccent.opacity(0.6))
+                    Text("Loading today's fact...")
                         .font(.headline)
-                    Spacer()
-                    Text("\(Int(sliderValue.rounded()))")
-                        .font(.title2.weight(.bold))
-                        .foregroundStyle(Color.qmAccent)
-                        .monospacedDigit()
-                        .frame(width: 32)
-                }
-
-                Slider(value: $sliderValue, in: 0...10, step: 1)
-                    .tint(Color.qmAccent)
-                    .onChange(of: sliderValue) { _, _ in
-                        Haptics.tap()
-                        logged = false
-                    }
-
-                HStack {
-                    Text("Low")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Text("High")
-                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-
-                Button {
-                    appModel.logEnergy(level: Int(sliderValue.rounded()))
-                    Haptics.success()
-                    logged = true
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: logged ? "checkmark" : "waveform.path")
-                        Text(logged ? "Logged" : "Log Today's Energy")
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-                .prominentButton()
-                .disabled(logged)
-                .animation(.easeInOut(duration: 0.2), value: logged)
+                .frame(maxWidth: .infinity)
+                .padding(40)
             }
         }
-        .qmCard()
-        .onAppear {
-            if let today = appModel.todayEntry {
-                sliderValue = Double(today.level)
-                logged = true
-            }
+        .background(Color.qmCard, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .animation(.easeInOut(duration: 0.2), value: revealed)
+        .animation(.easeInOut(duration: 0.2), value: showReactions)
+        .onAppear { revealed = false; showReactions = false }
+        .onChange(of: appModel.todayFact?.id) { _, _ in
+            revealed = false
+            showReactions = false
         }
     }
 }
